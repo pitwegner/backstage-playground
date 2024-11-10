@@ -1,0 +1,382 @@
+openapi: 3.0.3
+info:
+  title: {{ entity }} Service NATS API
+  version: 1.0.0
+x-components:
+  examples:
+    responses:
+      {{ entity }}ReadSucceeded: &{{ entity }}ReadSucceeded
+        {{ exampleObject | indent(8) }}
+      {{ entity }}CreateFailed: &{{ entity }}CreateFailed
+        name: contact_number
+        error: "missing key 'datatype'"
+      {{ entity }}NotFound: &{{ entity }}NotFound
+        id: {{ exampleFailId }}
+        error: {{ entity }} not found
+      {{ entity }}UpdateFailed: &{{ entity }}UpdateFailed
+        id: {{ exampleSuccessId }}
+        error: "missing key 'id'"
+  schemas:
+    headers:
+      X-Evo-Authorization:
+        in: header
+        name: X-Evo-Authorization
+        description: JWT for authn/authz
+        required: true
+        schema:
+          type: string
+          example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJz...
+      X-Evo-Status:
+        description: Status code equivalent to HTTP
+        schema:
+          type: integer
+          minimum: 100
+          maximum: 561
+    requests:
+      {{ entity }}Create:
+        {{ createSchema | indent(8) }}
+      {{ entity }}Update:
+        {{ updateSchema | indent(8) }}
+      {{ entity }}Fetch:
+        type: object
+        properties:
+          limit:
+            type: integer
+          offset:
+            type: integer
+          order_by:
+            type: string
+            format: {{ entity }}Field
+          field[operator]: {}
+    responses:
+      {{ entity }}CreateFailed:
+        type: object
+        properties:
+          {{ create_id_attribute | indent(10) }}
+          error:
+            type: string
+      {{ entity }}CreateSucceeded:
+        {{ responseSchema | indent(8) }}
+      {{ entity }}ReadFailed:
+        type: object
+        properties:
+          id:
+            type: string
+            format: uuid
+          error:
+            type: string
+      {{ entity }}ReadSucceeded:
+        {{ responseSchema | indent(8) }}
+      {{ entity }}UpdateSucceeded:
+        {{ responseSchema | indent(8) }}
+paths:
+  {{ service }}.{{ entity }}.create:
+    get:
+      tags:
+        - {{ entity }}
+      summary: Create (a) new {{ entity }}(s)
+      parameters:
+        - $ref: '#/x-components/schemas/headers/X-Evo-Authorization'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              oneOf:
+                - $ref: '#/x-components/schemas/requests/{{ entity }}Create'
+                - type: array
+                  items:
+                    $ref: '#/x-components/schemas/requests/{{ entity }}Create'
+            examples:
+              single:
+                value:
+                  {{ createExample | indent(18) }}
+              multiple:
+                value:
+                  - {{ createExample | indent(20) }}
+                  - {{ createFailExample | indent(20) }}
+        required: true
+      responses:
+        '201':
+          description: Successful creation of single {{ entity }}
+          headers:
+            X-Evo-Status:
+              $ref: '#/x-components/schemas/headers/X-Evo-Status'
+          content:
+            application/json:
+              schema:
+                $ref: '#/x-components/schemas/responses/{{ entity }}CreateSucceeded'
+              example: *{{ entity }}ReadSucceeded
+        '400':
+          description: Failed creation of single {{ entity }}
+          headers:
+            X-Evo-Status:
+              $ref: '#/x-components/schemas/headers/X-Evo-Status'
+          content:
+            application/json:
+              schema:
+                $ref: '#/x-components/schemas/responses/{{ entity }}CreateFailed'
+              example: *{{ entity }}CreateFailed
+        '200':
+          description: Creation of multiple {{ entity }}s
+          headers:
+            X-Evo-Status:
+              $ref: '#/x-components/schemas/headers/X-Evo-Status'
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  oneOf:
+                    - $ref: '#/x-components/schemas/responses/{{ entity }}CreateSucceeded'
+                    - $ref: '#/x-components/schemas/responses/{{ entity }}CreateFailed'
+              example:
+                - *{{ entity }}ReadSucceeded
+                - *{{ entity }}CreateFailed
+  {{ service }}.{{ entity }}.read:
+    get:
+      tags:
+        - {{ entity }}
+      summary: Read (an) existing {{ entity }}(s)
+      parameters:
+        - $ref: '#/x-components/schemas/headers/X-Evo-Authorization'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              oneOf:
+                - type: object
+                  properties:
+                    id:
+                      type: string
+                      format: uuid
+                - type: array
+                  items:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                        format: uuid
+            examples:
+              single:
+                value:
+                  id: {{ exampleSuccessId }}
+              multiple:
+                value:
+                  - id: {{ exampleSuccessId }}
+                  - id: {{ exampleFailId }}
+        required: true
+      responses:
+        '200':
+          description: Successful creation of {{ entity }}(s)
+          headers:
+            X-Evo-Status:
+              $ref: '#/x-components/schemas/headers/X-Evo-Status'
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/x-components/schemas/responses/{{ entity }}ReadSucceeded'
+                  - type: array
+                    items:
+                      oneOf:
+                        - $ref: '#/x-components/schemas/responses/{{ entity }}ReadSucceeded'
+                        - $ref: '#/x-components/schemas/responses/{{ entity }}ReadFailed'
+              examples:
+                single:
+                  value:
+                    *{{ entity }}ReadSucceeded
+                multiple:
+                  value:
+                    - *{{ entity }}ReadSucceeded
+                    - *{{ entity }}NotFound
+        '404':
+          description: Failed accessing a single {{ entity }}
+          headers:
+            X-Evo-Status:
+              $ref: '#/x-components/schemas/headers/X-Evo-Status'
+          content:
+            application/json:
+              schema:
+                $ref: '#/x-components/schemas/responses/{{ entity }}ReadFailed'
+              example: *{{ entity }}NotFound
+  {{ service }}.{{ entity }}.update:
+    get:
+      tags:
+        - {{ entity }}
+      summary: Update (an) existing {{ entity }}(s)
+      parameters:
+        - $ref: '#/x-components/schemas/headers/X-Evo-Authorization'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              oneOf:
+                - $ref: '#/x-components/schemas/requests/{{ entity }}Update'
+                - type: array
+                  items:
+                    $ref: '#/x-components/schemas/requests/{{ entity }}Update'
+            examples:
+              single:
+                value:
+                  {{ update_example | indent(18) }}
+              multiple:
+                value:
+                  - {{ update_example | indent(20) }}
+                  - {{ update_fail_example1 | indent(20) }}
+                  - {{ update_fail_example2 | indent(20) }}
+        required: true
+      responses:
+        '200':
+          description: Partially successful update of {{ entity }}(s)
+          headers:
+            X-Evo-Status:
+              $ref: '#/x-components/schemas/headers/X-Evo-Status'
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/x-components/schemas/responses/{{ entity }}UpdateSucceeded'
+                  - type: array
+                    items:
+                      oneOf:
+                        - $ref: '#/x-components/schemas/responses/{{ entity }}UpdateSucceeded'
+                        - $ref: '#/x-components/schemas/responses/{{ entity }}ReadFailed'
+              examples:
+                single:
+                  value:
+                    *{{ entity }}ReadSucceeded
+                multiple:
+                  value:
+                    - *{{ entity }}ReadSucceeded
+                    - *{{ entity }}NotFound
+                    - *{{ entity }}UpdateFailed
+        '404':
+          description: Failed accessing a single {{ entity }}
+          headers:
+            X-Evo-Status:
+              $ref: '#/x-components/schemas/headers/X-Evo-Status'
+          content:
+            application/json:
+              schema:
+                $ref: '#/x-components/schemas/responses/{{ entity }}ReadFailed'
+              example: *{{ entity }}NotFound
+  {{ service }}.{{ entity }}.delete:
+    get:
+      tags:
+        - {{ entity }}
+      summary: Delete (an) existing {{ entity }}(s)
+      parameters:
+        - $ref: '#/x-components/schemas/headers/X-Evo-Authorization'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              oneOf:
+                - type: object
+                  properties:
+                    id:
+                      type: string
+                      format: uuid
+                - type: array
+                  items:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                        format: uuid
+            examples:
+              single:
+                value:
+                  id: {{ exampleSuccessId }}
+              multiple:
+                value:
+                  - id: {{ exampleSuccessId }}
+                  - id: {{ exampleFailId }}
+        required: true
+      responses:
+        '204':
+          description: Successful deletion of single {{ entity }}
+          headers:
+            X-Evo-Status:
+              $ref: '#/x-components/schemas/headers/X-Evo-Status'
+        '200':
+          description: Partially successful deletion of {{ entity }}(s)
+          headers:
+            X-Evo-Status:
+              $ref: '#/x-components/schemas/headers/X-Evo-Status'
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  oneOf:
+                    - type: object
+                      properties:
+                        id:
+                          type: string
+                          format: uuid
+                    - $ref: '#/x-components/schemas/responses/{{ entity }}ReadFailed'
+              example:
+                - id: {{ exampleSuccessId }}
+                - *{{ entity }}NotFound
+        '404':
+          description: Failed accessing a single {{ entity }}
+          headers:
+            X-Evo-Status:
+              $ref: '#/x-components/schemas/headers/X-Evo-Status'
+          content:
+            application/json:
+              schema:
+                $ref: '#/x-components/schemas/responses/{{ entity }}ReadFailed'
+              example: *{{ entity }}NotFound
+  {{ service }}.{{ entity }}.fetch:
+    get:
+      tags:
+        - {{ entity }}
+      summary: Search and filter for existing {{ entity }}s
+      parameters:
+        - $ref: '#/x-components/schemas/headers/X-Evo-Authorization'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/x-components/schemas/requests/{{ entity }}Fetch'
+            examples:
+              by-id:
+                value:
+                  {{ fetch_example | indent(18) }}
+              operator:
+                value:
+                  {{ fetch_fail_example1 | indent(18) }}
+              typo:
+                value:
+                  {{ fetch_fail_example2 | indent(18) }}
+        required: true
+      responses:
+        '200':
+          description: Partially successful deletion of {{ entity }}(s)
+          headers:
+            X-Evo-Status:
+              $ref: '#/x-components/schemas/headers/X-Evo-Status'
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  oneOf:
+                    - type: array
+                      items:
+                        $ref: '#/x-components/schemas/responses/{{ entity }}ReadSucceeded'
+                    - type: object
+                      properties:
+                        error:
+                          type: string
+              examples:
+                single:
+                  value:
+                    - *{{ entity }}ReadSucceeded
+                empty:
+                  value: []
+                typo:
+                  value:
+                    error: "bad request"

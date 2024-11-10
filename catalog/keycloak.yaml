@@ -1,0 +1,45 @@
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: keycloak
+  title: Keycloak Server
+  description: All-in-one identity and access management platform
+spec:
+  type: service
+  lifecycle: production
+  owner: external
+  providesApis:
+    - keycloak-admin
+    - keycloak-oidc
+  dependsOn:
+    - resource:keycloak-db
+---
+apiVersion: backstage.io/v1alpha1
+kind: API
+metadata:
+  name: keycloak-admin
+  title: http/keycloak-admin
+  description: Admin REST interface
+spec:
+  type: openapi
+  lifecycle: production
+  owner: external
+  definition:
+    $text: https://raw.githubusercontent.com/ccouzens/keycloak-openapi/main/keycloak/23.0.1.json
+---
+apiVersion: backstage.io/v1alpha1
+kind: API
+metadata:
+  name: keycloak-oidc
+  title: http/keycloak-oidc
+  description: OIDC interface for authentication
+spec:
+  type: openapi
+  lifecycle: production
+  owner: external
+  definition: |
+    {
+      "swagger": "2.0",
+      "definitions": {
+      }
+    }

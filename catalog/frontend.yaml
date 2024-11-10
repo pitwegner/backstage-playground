@@ -1,0 +1,13 @@
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: frontend
+  title: Frontend Service
+  description: User Interface to interact with documents
+spec:
+  type: service
+  lifecycle: alpha
+  owner: acme
+  consumesApis:
+    - document
+    - keycloak-oidc

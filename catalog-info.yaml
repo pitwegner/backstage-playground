@@ -1,0 +1,28 @@
+apiVersion: backstage.io/v1alpha1
+kind: Location
+metadata:
+  name: acme-catalog
+  annotations:
+    github.com/project-slug: accelerai-poc/acme-docs
+    backstage.io/techdocs-ref: dir:.
+spec:
+  type: file
+  owner: acme
+  targets:
+    - ./catalog/document.yaml
+    - ./catalog/frontend.yaml
+    - ./catalog/keycloak.yaml
+    - ./catalog/minio.yaml
+    - ./catalog/postgres.yaml
+---
+apiVersion: backstage.io/v1alpha1
+kind: Group
+metadata:
+  name: acme
+  title: acme Team
+  description: The root group
+spec:
+  type: root
+  profile:
+    displayName: acme Team
+  children: []

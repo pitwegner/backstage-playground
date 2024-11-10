@@ -1,0 +1,1111 @@
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: documents
+  title: Document Service
+  description: Document management service for accessing documents and their information
+spec:
+  type: service
+  lifecycle: alpha
+  owner: acme
+  consumesApis:
+    - document.document.uploaded
+    - minio-s3
+  providesApis:
+    - document
+  dependsOn:
+    - resource:documents
+    - resource:document-db
+---
+apiVersion: backstage.io/v1alpha1
+kind: API
+metadata:
+  name: document
+  title: request/document
+  description: NATS API for documents
+spec:
+  type: openapi
+  lifecycle: alpha
+  owner: acme
+  definition: |
+    openapi: 3.0.3
+    info:
+      title: Document Service NATS API
+      version: 1.0.0
+    x-components:
+      examples:
+        responses:
+          DocumentCreateFailed: &DocumentCreateFailed
+            name: xyz.pdf
+            error: invalid content type
+          DocumentCreateSucceeded: &DocumentCreateSucceeded
+            id: fe143bab-5f4c-48a6-96c1-7bb2ef8d60af
+            name: abc.pdf
+            method: PUT
+            url: http://localhost:9002/documents/fe143bab-5f4c-48a6-96c1-7bb2ef8d60af.pdf?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=58ac8d28-82b5-46b1-9697-0a8b2b568d30%2F20220428%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20220428T173933Z&X-Amz-Expires=86400&X-Amz-SignedHeaders=host&X-Amz-Signature=fb0e9ec14d3af8c0aa29082e7e2fa4cd84f42f2534d00f357d753e4a35987104
+          DocumentDownloadSucceeded: &DocumentDownloadSucceeded
+            id: fe143bab-5f4c-48a6-96c1-7bb2ef8d60af
+            name: abc.pdf
+            method: GET
+            url: http://localhost:9002/documents/fe143bab-5f4c-48a6-96c1-7bb2ef8d60af.pdf?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=58ac8d28-82b5-46b1-9697-0a8b2b568d30%2F20220428%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20220428T173933Z&X-Amz-Expires=86400&X-Amz-SignedHeaders=host&X-Amz-Signature=fb0e9ec14d3af8c0aa29082e7e2fa4cd84f42f2534d00f357d753e4a35987104
+          DocumentNotFound: &DocumentNotFound
+            id: d9460573-1f33-450a-8a24-6d73c3a7a008
+            error: document not found
+          DocumentReadSucceeded: &DocumentReadSucceeded
+            id: fe143bab-5f4c-48a6-96c1-7bb2ef8d60af
+            name: abc.pdf
+            content-type: application/pdf
+            fulltext: This is the full content of the document...
+          DocumentUpdateFailed: &DocumentUpdateFailed
+            id: fe143bab-5f4c-48a6-96c1-7bb2ef8d60af
+            error: 'Unknown modifier: $st. Expected a valid update modifier or pipeline-style update specified as an array'
+          DocumentUpdateSucceeded: &DocumentUpdateSucceeded
+            n: 1
+            nModified: 1
+            ok: 1
+            updatedExisting: true
+          DocumentDeleteSucceeded: &DocumentDeleteSucceeded
+            n: 1
+            ok: 1
+          DocumentFetchSucceeded: &DocumentFetchSucceeded
+            - id: fe143bab-5f4c-48a6-96c1-7bb2ef8d60af
+              name: abc.pdf
+              content-type: application/pdf
+            - id: 8533eade-57b0-4d19-907e-f29ed3a14820
+              name: xyz.pdf
+              content-type: application/pdf
+          DocumentFetchFailed: &DocumentFetchFailed
+            error: 'Unknown operator: rgex'
+          attributeReadSucceeded: &attributeReadSucceeded
+            created_at: '2012-04-23T18:25:43.511Z'
+            datatype: phone_number
+            display_name: Kontaktnummer
+            id: d9460573-1f33-450a-8a24-6d73c3a7a008
+            name: contact_number
+            owner: frontend
+            usage: ENTITY
+
+          attributeCreateFailed: &attributeCreateFailed
+            name: contact_number
+            error: "missing key 'datatype'"
+          attributeNotFound: &attributeNotFound
+            id: d9460573-1f33-450a-8a24-6d73c3a7a008
+            error: attribute not found
+          attributeUpdateFailed: &attributeUpdateFailed
+            id: d9460573-1f33-450a-8a24-6d73c3a7a008
+            error: "missing key 'id'"
+      schemas:
+        headers:
+          X-Evo-Authorization:
+            in: header
+            name: X-Evo-Authorization
+            description: JWT for authn/authz
+            required: true
+            schema:
+              type: string
+              example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJz...
+          X-Evo-S3:
+            in: header
+            name: X-Evo-S3
+            description: specifies whether the S3 is accessed from the internal network
+            required: false
+            schema:
+              type: string
+              enum: [internal, external]
+              default: internal
+          X-Evo-Status:
+            description: Status code equivalent to HTTP
+            schema:
+              type: integer
+              minimum: 100
+              maximum: 561
+        requests:
+          DocumentCreate:
+            type: object
+            properties:
+              name:
+                type: string
+              content-type:
+                type: string
+                format: mime-type
+          attributeCreate:
+            properties:
+              created_at:
+                format: datetime
+                type: string
+              datatype:
+                type: string
+              display_name:
+                type: string
+              id:
+                format: uuid
+                type: string
+              name:
+                type: string
+              owner:
+                format: servicename
+                type: string
+              usage:
+                enum:
+                - ENTITY
+                - INTERNAL
+                - VISIBLE
+                - READONLY
+                type: string
+            required:
+            - name
+            - display_name
+            - datatype
+            - usage
+            type: object
+
+          attributeUpdate:
+            properties:
+              id:
+                format: uuid
+                type: string
+              update:
+                properties:
+                  created_at:
+                    format: datetime
+                    type: string
+                  datatype:
+                    type: string
+                  display_name:
+                    type: string
+                  name:
+                    type: string
+                  owner:
+                    format: servicename
+                    type: string
+                  usage:
+                    enum:
+                    - ENTITY
+                    - INTERNAL
+                    - VISIBLE
+                    - READONLY
+                    type: string
+                type: object
+            type: object
+
+          attributeFetch:
+            type: object
+            properties:
+              limit:
+                type: integer
+              offset:
+                type: integer
+              order_by:
+                type: string
+                format: attributeField
+              field[operator]:
+                format: any
+        responses:
+          DocumentCreateFailed:
+            type: object
+            properties:
+              name:
+                type: string
+              error:
+                type: string
+          DocumentCreateSucceeded:
+            type: object
+            properties:
+              id:
+                type: string
+                format: uuid
+              name:
+                type: string
+              method:
+                type: string
+              url:
+                type: string
+                format: uri
+          DocumentReadFailed:
+            type: object
+            properties:
+              id:
+                type: string
+                format: uuid
+              error:
+                type: string
+          DocumentReadSucceeded:
+            type: object
+            properties:
+              id:
+                type: string
+                format: uuid
+              name:
+                type: string
+              content-type:
+                type: string
+                format: mime-type
+              fulltext:
+                type: string
+          DocumentUpdateSucceeded:
+            type: object
+            properties:
+              n:
+                type: integer
+              nModified:
+                type: integer
+              ok:
+                type: integer
+              updatedExisting:
+                type: boolean
+          DocumentDeleteSucceeded:
+            type: object
+            properties:
+              n:
+                type: integer
+              ok:
+                type: integer
+          DocumentDownloadSucceeded:
+            type: object
+            properties:
+              id:
+                type: string
+                format: uuid
+              method:
+                type: string
+              url:
+                type: string
+                format: uri
+          attributeCreateFailed:
+            type: object
+            properties:
+              type: string
+
+              error:
+                type: string
+          attributeCreateSucceeded:
+            properties:
+              created_at:
+                format: datetime
+                type: string
+              datatype:
+                type: string
+              display_name:
+                type: string
+              id:
+                format: uuid
+                type: string
+              name:
+                type: string
+              owner:
+                format: servicename
+                type: string
+              usage:
+                enum:
+                - ENTITY
+                - INTERNAL
+                - VISIBLE
+                - READONLY
+                type: string
+            type: object
+
+          attributeReadFailed:
+            type: object
+            properties:
+              id:
+                type: string
+                format: uuid
+              error:
+                type: string
+          attributeReadSucceeded:
+            properties:
+              created_at:
+                format: datetime
+                type: string
+              datatype:
+                type: string
+              display_name:
+                type: string
+              id:
+                format: uuid
+                type: string
+              name:
+                type: string
+              owner:
+                format: servicename
+                type: string
+              usage:
+                enum:
+                - ENTITY
+                - INTERNAL
+                - VISIBLE
+                - READONLY
+                type: string
+            type: object
+
+          attributeUpdateSucceeded:
+            properties:
+              created_at:
+                format: datetime
+                type: string
+              datatype:
+                type: string
+              display_name:
+                type: string
+              id:
+                format: uuid
+                type: string
+              name:
+                type: string
+              owner:
+                format: servicename
+                type: string
+              usage:
+                enum:
+                - ENTITY
+                - INTERNAL
+                - VISIBLE
+                - READONLY
+                type: string
+            type: object
+    paths:
+      document.document.create:
+        get:
+          tags:
+            - document
+          summary: Create (a) new document(s)
+          parameters:
+            - $ref: '#/x-components/schemas/headers/X-Evo-Authorization'
+            - $ref: '#/x-components/schemas/headers/X-Evo-S3'
+          requestBody:
+            content:
+              application/json:
+                schema:
+                  oneOf:
+                    - $ref: '#/x-components/schemas/requests/DocumentCreate'
+                    - type: array
+                      items:
+                        $ref: '#/x-components/schemas/requests/DocumentCreate'
+                examples:
+                  single:
+                    value:
+                      name: abc.pdf
+                      content-type: application/pdf
+                  multiple:
+                    value:
+                      - name: abc.pdf
+                        content-type: application/pdf
+                      - name: xyz.pdf
+                        content-type: location/foo
+            required: true
+          responses:
+            '201':
+              description: Successful creation of single document
+              headers:
+                X-Evo-Status:
+                  $ref: '#/x-components/schemas/headers/X-Evo-Status'
+              content:
+                application/json:
+                  schema:
+                    $ref: '#/x-components/schemas/responses/DocumentCreateSucceeded'
+                  example: *DocumentCreateSucceeded
+            '400':
+              description: Failed creation of single document
+              headers:
+                X-Evo-Status:
+                  $ref: '#/x-components/schemas/headers/X-Evo-Status'
+              content:
+                application/json:
+                  schema:
+                    $ref: '#/x-components/schemas/responses/DocumentCreateFailed'
+                  example: *DocumentCreateFailed
+            '200':
+              description: Creation of multiple documents
+              headers:
+                X-Evo-Status:
+                  $ref: '#/x-components/schemas/headers/X-Evo-Status'
+              content:
+                application/json:
+                  schema:
+                    oneOf:
+                      - $ref: '#/x-components/schemas/responses/DocumentCreateSucceeded'
+                      - $ref: '#/x-components/schemas/responses/DocumentCreateFailed'
+                  example:
+                    - *DocumentCreateSucceeded
+                    - *DocumentCreateFailed
+      document.document.read:
+        get:
+          tags:
+            - document
+          summary: Read (an) existing document(s)
+          parameters:
+            - $ref: '#/x-components/schemas/headers/X-Evo-Authorization'
+          requestBody:
+            content:
+              application/json:
+                schema:
+                  oneOf:
+                    - type: object
+                      properties:
+                        id:
+                          type: string
+                          format: uuid
+                    - type: array
+                      items:
+                        type: object
+                        properties:
+                          id:
+                            type: string
+                            format: uuid
+                examples:
+                  single:
+                    value:
+                      id: fe143bab-5f4c-48a6-96c1-7bb2ef8d60af
+                  multiple:
+                    value:
+                      - id: fe143bab-5f4c-48a6-96c1-7bb2ef8d60af
+                      - id: d9460573-1f33-450a-8a24-6d73c3a7a008
+            required: true
+          responses:
+            '200':
+              description: Successful creation of document(s)
+              headers:
+                X-Evo-Status:
+                  $ref: '#/x-components/schemas/headers/X-Evo-Status'
+              content:
+                application/json:
+                  schema:
+                    oneOf:
+                      - $ref: '#/x-components/schemas/responses/DocumentReadSucceeded'
+                      - type: array
+                        items:
+                          oneOf:
+                            - $ref: '#/x-components/schemas/responses/DocumentReadSucceeded'
+                            - $ref: '#/x-components/schemas/responses/DocumentReadFailed'
+                  examples:
+                    single:
+                      value:
+                        *DocumentReadSucceeded
+                    multiple:
+                      value:
+                        - *DocumentReadSucceeded
+                        - *DocumentNotFound
+            '404':
+              description: Failed accessing a single document
+              headers:
+                X-Evo-Status:
+                  $ref: '#/x-components/schemas/headers/X-Evo-Status'
+              content:
+                application/json:
+                  schema:
+                    $ref: '#/x-components/schemas/responses/DocumentReadFailed'
+                  example: *DocumentNotFound
+      document.document.update:
+        get:
+          tags:
+            - document
+          summary: Update (an) existing document(s)
+          parameters:
+            - $ref: '#/x-components/schemas/headers/X-Evo-Authorization'
+          requestBody:
+            content:
+              application/json:
+                schema:
+                  oneOf:
+                    - type: object
+                      properties:
+                        id:
+                          type: string
+                          format: uuid
+                        update:
+                          type: object
+                          description: mongo update query
+                    - type: array
+                      items:
+                        type: object
+                        properties:
+                          id:
+                            type: string
+                            format: uuid
+                          update:
+                            type: object
+                            description: mongo update query
+                examples:
+                  single:
+                    value:
+                      id: fe143bab-5f4c-48a6-96c1-7bb2ef8d60af
+                      update:
+                        $set:
+                          name: foobar.pdf
+                  multiple:
+                    value:
+                      - id: fe143bab-5f4c-48a6-96c1-7bb2ef8d60af
+                        update:
+                          $set:
+                            name: foobar.pdf
+                      - id: d9460573-1f33-450a-8a24-6d73c3a7a008
+                        update:
+                          $push:
+                            writers: cbdba477-1669-41d3-8a48-16a6ed7cbafb
+            required: true
+          responses:
+            '200':
+              description: Partially successful update of document(s)
+              headers:
+                X-Evo-Status:
+                  $ref: '#/x-components/schemas/headers/X-Evo-Status'
+              content:
+                application/json:
+                  schema:
+                    oneOf:
+                      - $ref: '#/x-components/schemas/responses/DocumentUpdateSucceeded'
+                      - type: array
+                        items:
+                          oneOf:
+                            - $ref: '#/x-components/schemas/responses/DocumentUpdateSucceeded'
+                            - $ref: '#/x-components/schemas/responses/DocumentReadFailed'
+                  examples:
+                    single:
+                      value:
+                        *DocumentUpdateSucceeded
+                    multiple:
+                      value:
+                        - *DocumentUpdateSucceeded
+                        - *DocumentUpdateFailed
+                        - *DocumentNotFound
+            '404':
+              description: Failed accessing a single document
+              headers:
+                X-Evo-Status:
+                  $ref: '#/x-components/schemas/headers/X-Evo-Status'
+              content:
+                application/json:
+                  schema:
+                    $ref: '#/x-components/schemas/responses/DocumentReadFailed'
+                  example: *DocumentNotFound
+      document.document.delete:
+        get:
+          tags:
+            - document
+          summary: Delete (an) existing document(s)
+          parameters:
+            - $ref: '#/x-components/schemas/headers/X-Evo-Authorization'
+          requestBody:
+            content:
+              application/json:
+                schema:
+                  oneOf:
+                    - type: object
+                      properties:
+                        id:
+                          type: string
+                          format: uuid
+                    - type: array
+                      items:
+                        type: object
+                        properties:
+                          id:
+                            type: string
+                            format: uuid
+                examples:
+                  single:
+                    value:
+                      id: fe143bab-5f4c-48a6-96c1-7bb2ef8d60af
+                  multiple:
+                    value:
+                      - id: fe143bab-5f4c-48a6-96c1-7bb2ef8d60af
+                      - id: d9460573-1f33-450a-8a24-6d73c3a7a008
+            required: true
+          responses:
+            '200':
+              description: Partially successful deletion of document(s)
+              headers:
+                X-Evo-Status:
+                  $ref: '#/x-components/schemas/headers/X-Evo-Status'
+              content:
+                application/json:
+                  schema:
+                    oneOf:
+                      - $ref: '#/x-components/schemas/responses/DocumentDeleteSucceeded'
+                      - type: array
+                        items:
+                          oneOf:
+                            - $ref: '#/x-components/schemas/responses/DocumentDeleteSucceeded'
+                            - $ref: '#/x-components/schemas/responses/DocumentReadFailed'
+                  examples:
+                    single:
+                      value:
+                        *DocumentDeleteSucceeded
+                    multiple:
+                      value:
+                        - *DocumentDeleteSucceeded
+                        - *DocumentNotFound
+            '404':
+              description: Failed accessing a single document
+              headers:
+                X-Evo-Status:
+                  $ref: '#/x-components/schemas/headers/X-Evo-Status'
+              content:
+                application/json:
+                  schema:
+                    $ref: '#/x-components/schemas/responses/DocumentReadFailed'
+                  example: *DocumentNotFound
+      document.document.fetch:
+        get:
+          tags:
+            - document
+          summary: Search and filter documents
+          parameters:
+            - $ref: '#/x-components/schemas/headers/X-Evo-Authorization'
+          requestBody:
+            content:
+              application/json:
+                schema:
+                  type: object
+                  properties:
+                    filter:
+                      type: object
+                      description: mongo filter query
+                    fields:
+                      type: array
+                      description: list of fields to include in the result set
+                    options:
+                      type: object
+                      description: mongo query options, e.g. sort, limit, skip
+                example:
+                  filter:
+                    name:
+                      $regex: pdf
+                  fields:
+                    - name
+                    - content_type
+                  options:
+                    limit: 50
+                    skip: 100
+                    sort: created_at
+            required: true
+          responses:
+            '200':
+              description: Result set of documents
+              headers:
+                X-Evo-Status:
+                  $ref: '#/x-components/schemas/headers/X-Evo-Status'
+              content:
+                application/json:
+                  schema:
+                    $ref: '#/x-components/schemas/responses/DocumentFetchSucceeded'
+                  examples:
+                    result:
+                      value: *DocumentFetchSucceeded
+                    empty:
+                      value: []
+            '400':
+              description: Failed accessing a single document
+              headers:
+                X-Evo-Status:
+                  $ref: '#/x-components/schemas/headers/X-Evo-Status'
+              content:
+                application/json:
+                  schema:
+                    $ref: '#/x-components/schemas/responses/DocumentFetchFailed'
+                  example: *DocumentFetchFailed
+      document.document.download:
+        get:
+          tags:
+            - document
+          summary: Retrieve a presigned download URL for (an) existing document(s)
+          parameters:
+            - $ref: '#/x-components/schemas/headers/X-Evo-Authorization'
+          requestBody:
+            content:
+              application/json:
+                schema:
+                  oneOf:
+                    - type: object
+                      properties:
+                        id:
+                          type: string
+                          format: uuid
+                    - type: array
+                      items:
+                        type: object
+                        properties:
+                          id:
+                            type: string
+                            format: uuid
+                examples:
+                  single:
+                    value:
+                      id: fe143bab-5f4c-48a6-96c1-7bb2ef8d60af
+                  multiple:
+                    value:
+                      - id: fe143bab-5f4c-48a6-96c1-7bb2ef8d60af
+                      - id: d9460573-1f33-450a-8a24-6d73c3a7a008
+            required: true
+          responses:
+            '200':
+              description: Successful URL creation for document(s)
+              headers:
+                X-Evo-Status:
+                  $ref: '#/x-components/schemas/headers/X-Evo-Status'
+              content:
+                application/json:
+                  schema:
+                    oneOf:
+                      - $ref: '#/x-components/schemas/responses/DocumentDownloadSucceeded'
+                      - type: array
+                        items:
+                          oneOf:
+                            - $ref: '#/x-components/schemas/responses/DocumentDownloadSucceeded'
+                            - $ref: '#/x-components/schemas/responses/DocumentReadFailed'
+                  examples:
+                    single:
+                      value:
+                        *DocumentDownloadSucceeded
+                    multiple:
+                      value:
+                        - *DocumentDownloadSucceeded
+                        - *DocumentNotFound
+            '404':
+              description: Failed accessing a single document
+              headers:
+                X-Evo-Status:
+                  $ref: '#/x-components/schemas/headers/X-Evo-Status'
+              content:
+                application/json:
+                  schema:
+                    $ref: '#/x-components/schemas/responses/DocumentReadFailed'
+                  example: *DocumentNotFound
+      document.attribute.create:
+        get:
+          tags:
+            - attribute
+          summary: Create (a) new attribute(s)
+          parameters:
+            - $ref: '#/x-components/schemas/headers/X-Evo-Authorization'
+          requestBody:
+            content:
+              application/json:
+                schema:
+                  oneOf:
+                    - $ref: '#/x-components/schemas/requests/attributeCreate'
+                    - type: array
+                      items:
+                        $ref: '#/x-components/schemas/requests/attributeCreate'
+                examples:
+                  single:
+                    value:
+                      datatype: phone_number
+                      display_name: Kontaktnummer
+                      name: contact_number
+                      usage: ENTITY
+
+                  multiple:
+                    value:
+                      - datatype: phone_number
+                        display_name: Kontaktnummer
+                        name: contact_number
+                        usage: ENTITY
+
+                      - datatype: currency
+                        display_name: Rechnunssumme
+                        name: invoice_total
+                        usage: ENTTY
+
+            required: true
+          responses:
+            '201':
+              description: Successful creation of single attribute
+              headers:
+                X-Evo-Status:
+                  $ref: '#/x-components/schemas/headers/X-Evo-Status'
+              content:
+                application/json:
+                  schema:
+                    $ref: '#/x-components/schemas/responses/attributeCreateSucceeded'
+                  example: *attributeReadSucceeded
+            '400':
+              description: Failed creation of single attribute
+              headers:
+                X-Evo-Status:
+                  $ref: '#/x-components/schemas/headers/X-Evo-Status'
+              content:
+                application/json:
+                  schema:
+                    $ref: '#/x-components/schemas/responses/attributeCreateFailed'
+                  example: *attributeCreateFailed
+            '200':
+              description: Creation of multiple attributes
+              headers:
+                X-Evo-Status:
+                  $ref: '#/x-components/schemas/headers/X-Evo-Status'
+              content:
+                application/json:
+                  schema:
+                    type: array
+                    items:
+                      oneOf:
+                        - $ref: '#/x-components/schemas/responses/attributeCreateSucceeded'
+                        - $ref: '#/x-components/schemas/responses/attributeCreateFailed'
+                  example:
+                    - *attributeReadSucceeded
+                    - *attributeCreateFailed
+      document.attribute.read:
+        get:
+          tags:
+            - attribute
+          summary: Read (an) existing attribute(s)
+          parameters:
+            - $ref: '#/x-components/schemas/headers/X-Evo-Authorization'
+          requestBody:
+            content:
+              application/json:
+                schema:
+                  oneOf:
+                    - type: object
+                      properties:
+                        id:
+                          type: string
+                          format: uuid
+                    - type: array
+                      items:
+                        type: object
+                        properties:
+                          id:
+                            type: string
+                            format: uuid
+                examples:
+                  single:
+                    value:
+                      id: fe143bab-5f4c-48a6-96c1-7bb2ef8d60af
+                  multiple:
+                    value:
+                      - id: fe143bab-5f4c-48a6-96c1-7bb2ef8d60af
+                      - id: d9460573-1f33-450a-8a24-6d73c3a7a008
+            required: true
+          responses:
+            '200':
+              description: Successful creation of attribute(s)
+              headers:
+                X-Evo-Status:
+                  $ref: '#/x-components/schemas/headers/X-Evo-Status'
+              content:
+                application/json:
+                  schema:
+                    oneOf:
+                      - $ref: '#/x-components/schemas/responses/attributeReadSucceeded'
+                      - type: array
+                        items:
+                          oneOf:
+                            - $ref: '#/x-components/schemas/responses/attributeReadSucceeded'
+                            - $ref: '#/x-components/schemas/responses/attributeReadFailed'
+                  examples:
+                    single:
+                      value:
+                        *attributeReadSucceeded
+                    multiple:
+                      value:
+                        - *attributeReadSucceeded
+                        - *attributeNotFound
+            '404':
+              description: Failed accessing a single attribute
+              headers:
+                X-Evo-Status:
+                  $ref: '#/x-components/schemas/headers/X-Evo-Status'
+              content:
+                application/json:
+                  schema:
+                    $ref: '#/x-components/schemas/responses/attributeReadFailed'
+                  example: *attributeNotFound
+      document.attribute.update:
+        get:
+          tags:
+            - attribute
+          summary: Update (an) existing attribute(s)
+          parameters:
+            - $ref: '#/x-components/schemas/headers/X-Evo-Authorization'
+          requestBody:
+            content:
+              application/json:
+                schema:
+                  oneOf:
+                    - $ref: '#/x-components/schemas/requests/attributeUpdate'
+                    - type: array
+                      items:
+                        $ref: '#/x-components/schemas/requests/attributeUpdate'
+                examples:
+                  single:
+                    value:
+                      id: fe143bab-5f4c-48a6-96c1-7bb2ef8d60af
+                      update:
+                        usage: ENTITY
+
+                  multiple:
+                    value:
+                      - id: fe143bab-5f4c-48a6-96c1-7bb2ef8d60af
+                        update:
+                          usage: ENTITY
+
+                      - id: d9460573-1f33-450a-8a24-6d73c3a7a008
+                        update:
+                          usage: ENTITY
+
+                      - id: d9460573-1f33-450a-8a24-6d73c3a7a008
+                        update:
+                          usage: ENTTY
+
+            required: true
+          responses:
+            '200':
+              description: Partially successful update of attribute(s)
+              headers:
+                X-Evo-Status:
+                  $ref: '#/x-components/schemas/headers/X-Evo-Status'
+              content:
+                application/json:
+                  schema:
+                    oneOf:
+                      - $ref: '#/x-components/schemas/responses/attributeUpdateSucceeded'
+                      - type: array
+                        items:
+                          oneOf:
+                            - $ref: '#/x-components/schemas/responses/attributeUpdateSucceeded'
+                            - $ref: '#/x-components/schemas/responses/attributeReadFailed'
+                  examples:
+                    single:
+                      value:
+                        *attributeReadSucceeded
+                    multiple:
+                      value:
+                        - *attributeReadSucceeded
+                        - *attributeNotFound
+                        - *attributeUpdateFailed
+            '404':
+              description: Failed accessing a single attribute
+              headers:
+                X-Evo-Status:
+                  $ref: '#/x-components/schemas/headers/X-Evo-Status'
+              content:
+                application/json:
+                  schema:
+                    $ref: '#/x-components/schemas/responses/attributeReadFailed'
+                  example: *attributeNotFound
+      document.attribute.delete:
+        get:
+          tags:
+            - attribute
+          summary: Delete (an) existing attribute(s)
+          parameters:
+            - $ref: '#/x-components/schemas/headers/X-Evo-Authorization'
+          requestBody:
+            content:
+              application/json:
+                schema:
+                  oneOf:
+                    - type: object
+                      properties:
+                        id:
+                          type: string
+                          format: uuid
+                    - type: array
+                      items:
+                        type: object
+                        properties:
+                          id:
+                            type: string
+                            format: uuid
+                examples:
+                  single:
+                    value:
+                      id: fe143bab-5f4c-48a6-96c1-7bb2ef8d60af
+                  multiple:
+                    value:
+                      - id: fe143bab-5f4c-48a6-96c1-7bb2ef8d60af
+                      - id: d9460573-1f33-450a-8a24-6d73c3a7a008
+            required: true
+          responses:
+            '204':
+              description: Successful deletion of single attribute
+              headers:
+                X-Evo-Status:
+                  $ref: '#/x-components/schemas/headers/X-Evo-Status'
+            '200':
+              description: Partially successful deletion of attribute(s)
+              headers:
+                X-Evo-Status:
+                  $ref: '#/x-components/schemas/headers/X-Evo-Status'
+              content:
+                application/json:
+                  schema:
+                    type: array
+                    items:
+                      oneOf:
+                        - type: object
+                          properties:
+                            id:
+                              type: string
+                              format: uuid
+                        - $ref: '#/x-components/schemas/responses/attributeReadFailed'
+                  example:
+                    - id: fe143bab-5f4c-48a6-96c1-7bb2ef8d60af
+                    - *attributeNotFound
+            '404':
+              description: Failed accessing a single attribute
+              headers:
+                X-Evo-Status:
+                  $ref: '#/x-components/schemas/headers/X-Evo-Status'
+              content:
+                application/json:
+                  schema:
+                    $ref: '#/x-components/schemas/responses/attributeReadFailed'
+                  example: *attributeNotFound
+      document.attribute.fetch:
+        get:
+          tags:
+            - attribute
+          summary: Search and filter for existing attributes
+          parameters:
+            - $ref: '#/x-components/schemas/headers/X-Evo-Authorization'
+          requestBody:
+            content:
+              application/json:
+                schema:
+                  $ref: '#/x-components/schemas/requests/attributeFetch'
+                examples:
+                  by-id:
+                    value:
+                      id[eq]: fe143bab-5f4c-48a6-96c1-7bb2ef8d60af
+
+                  operator:
+                    value:
+                      display_name[eq]: ENTTY
+                      order_by: usage
+
+                  typo:
+                    value:
+                      srt: test
+
+            required: true
+          responses:
+            '200':
+              description: Partially successful deletion of attribute(s)
+              headers:
+                X-Evo-Status:
+                  $ref: '#/x-components/schemas/headers/X-Evo-Status'
+              content:
+                application/json:
+                  schema:
+                    type: array
+                    items:
+                      oneOf:
+                        - type: array
+                          items:
+                            $ref: '#/x-components/schemas/responses/attributeReadSucceeded'
+                        - type: object
+                          properties:
+                            error:
+                              type: string
+                  examples:
+                    single:
+                      value:
+                        - *attributeReadSucceeded
+                    empty:
+                      value: []
+                    typo:
+                      value:
+                        error: "bad request"

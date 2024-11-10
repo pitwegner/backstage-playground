@@ -1,0 +1,8 @@
+site_name: acme Docs
+nav:
+  - Home: index.md
+  - Development Setup: development.md
+plugins:
+  - techdocs-core
+#  - kroki
+#  - pdf-export

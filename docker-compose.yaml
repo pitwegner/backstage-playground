@@ -1,0 +1,15 @@
+version: '3'
+services:
+  backstage:
+    image: local/backstage:latest
+    build: .
+    env_file:
+      - .env
+    ports:
+      - '7007:7007'
+    volumes:
+      - ${PWD}/app-config.docker.yaml:/app/app-config.yaml
+      - ${PWD}/docs:/app/docs
+      - ${PWD}/mkdocs.yaml:/app/mkdocs.yaml
+      - ${PWD}/catalog:/app/catalog
+      - ${PWD}/catalog-info.yaml:/app/catalog-info.yaml

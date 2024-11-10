@@ -1,0 +1,226 @@
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: minio
+  title: Minio Server
+  description: Object storage provider for documents and media files
+spec:
+  type: service
+  lifecycle: production
+  owner: external
+  providesApis:
+    - minio-s3
+    - document.document.uploaded
+---
+apiVersion: backstage.io/v1alpha1
+kind: API
+metadata:
+  name: minio-s3
+  title: http/minio-s3
+  description: Amazon S3 interface for Minio
+spec:
+  type: openapi
+  lifecycle: production
+  owner: external
+  definition:
+    $text: https://raw.githubusercontent.com/aws/aws-sdk-js/master/apis/s3-2006-03-01.normal.json
+---
+apiVersion: backstage.io/v1alpha1
+kind: API
+metadata:
+  name: document.document.uploaded
+  title: publish/document.document.uploaded
+  description: Message subject for S3 events published by Minio
+spec:
+  type: nats-subject
+  lifecycle: production
+  owner: external
+  definition: |
+    {
+      "swagger": "2.0",
+      "definitions": {
+        "message": {
+          "type": "object",
+          "properties": {
+            "EventName": {
+              "type": "string",
+              "example": "s3:ObjectCreated:Put"
+            },
+            "Key": {
+              "type": "string",
+              "example": "documents/55543_HRB23507_GEV_R_2023-05-02_12732685_75553.pdf"
+            },
+            "Records": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "eventVersion": {
+                    "type": "string",
+                    "example": "2.0"
+                  },
+                  "eventSource": {
+                    "type": "string",
+                    "example": "minio:s3"
+                  },
+                  "awsRegion": {
+                    "type": "string"
+                  },
+                  "eventTime": {
+                    "type": "string",
+                    "example": "2024-01-08T15:17:21.588Z"
+                  },
+                  "eventName": {
+                    "type": "string",
+                    "example": "s3:ObjectCreated:Put"
+                  },
+                  "userIdentity":  {
+                    "type": "object",
+                    "properties": {
+                      "principalId":  {
+                        "type": "string",
+                        "example": "accesskey"
+                      }
+                    }
+                  },
+                  "requestParameters":  {
+                    "type": "object",
+                    "properties": {
+                      "principalId":  {
+                        "type": "string",
+                        "example": "accesskey"
+                      },
+                      "region":  {
+                        "type": "string"
+                      },
+                      "sourceIPAddress":  {
+                        "type": "string",
+                        "example": "192.168.65.1"
+                      }
+                    }
+                  },
+                  "responseElements":  {
+                    "type": "object",
+                    "properties": {
+                      "x-amz-id-2":  {
+                        "type": "string",
+                        "example": "dd9025bab4ad464b049177c95eb6ebf374d3b3fd1af9251148b658df7ac2e3e8"
+                      },
+                      "x-amz-request-id":  {
+                        "type": "string",
+                        "example": "17A8683653931E87"
+                      },
+                      "x-minio-deployment-id":  {
+                        "type": "string",
+                        "example": "a5dc1d02-e9b9-4295-8333-325c4ca21c18"
+                      },
+                      "x-minio-origin-endpoint":  {
+                        "type": "string",
+                        "example": "http://localhost:9000"
+                      }
+                    }
+                  },
+                  "s3":  {
+                    "type": "object",
+                    "properties": {
+                      "s3SchemaVersion":  {
+                        "type": "string",
+                        "example": "1.0"
+                      },
+                      "configurationId":  {
+                        "type": "string",
+                        "example": "Config"
+                      },
+                      "bucket":  {
+                        "type": "object",
+                        "properties": {
+                          "name": {
+                            "type": "string",
+                            "example": "documents"
+                          },
+                          "ownerIdentity": {
+                            "type": "object",
+                            "properties": {
+                              "principalId": {
+                                "type": "string",
+                                "example": "accesskey"
+                              }
+                            }
+                          },
+                          "arn": {
+                            "type": "string",
+                            "example": "arn:aws:s3:::documents"
+                          }
+                        }
+                      },
+                      "object":  {
+                        "type": "object",
+                        "properties": {
+                          "key": {
+                            "type": "string",
+                            "example": "55543_HRB23507_GEV_R_2023-05-02_12732685_75553.pdf"
+                          },
+                          "size": {
+                            "type": "number",
+                            "example": 4856100
+                          },
+                          "eTag": {
+                            "type": "string",
+                            "example": "c76dc6c4e34a007655861ff210aa758f"
+                          },
+                          "contentType": {
+                            "type": "string",
+                            "example": "application/pdf"
+                          },
+                          "userMetadata": {
+                            "type": "object",
+                            "properties": {
+                              "content-type": {
+                                "type": "string",
+                                "example": "application/pdf"
+                              }
+                            }
+                          },
+                          "sequencer": {
+                            "type": "string",
+                            "example": "17A8683658DB6931"
+                          }
+                        }
+                      }
+                    }
+                  },
+                  "source": {
+                    "type": "object",
+                    "properties": {
+                      "host": {
+                        "type": "string",
+                        "example": "192.168.65.1"
+                      },
+                      "port": {
+                        "type": "string"
+                      },
+                      "userAgent": {
+                        "type": "string",
+                        "example": "MinIO (linux; amd64) minio-go/v7.0.61 MinIO Console/(dev)"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+---
+apiVersion: backstage.io/v1alpha1
+kind: Resource
+metadata:
+  name: documents
+  title: bucket/documents
+  description: Stores raw document files
+spec:
+  type: bucket
+  owner: acme
+  dependsOn:
+    - component:minio
